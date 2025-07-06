@@ -15,12 +15,10 @@ app.listen(PORT, () => {
   console.log(`✅ Backend running on http://localhost:${PORT}`);
 });
 
-// === Middleware 設定 ===
 app.use(cors());
 app.use(express.json());
 app.use(timeout("10s"));
 
-// === 檔案上傳資料夾準備 ===
 const uploadDir = "uploads";
 if (!fs.existsSync(uploadDir)) {
   fs.mkdirSync(uploadDir);
@@ -35,10 +33,8 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 app.use("/uploads", express.static(uploadDir));
 
-// === 資料庫連線 ===
 const db = new Database("MYDB.db");
 
-// ✅ 改為同步執行的操作紀錄工具函式
 function logAction(username, action, details = null) {
   try {
     db.prepare(
@@ -52,12 +48,10 @@ function logAction(username, action, details = null) {
   }
 }
 
-// === 健康檢查 API ===
 app.get("/ping", (req, res) => {
   res.send("pong");
 });
 
-// === 權限中介函式（含錯誤保護） ===
 function checkAdmin(req, res, next) {
   try {
     const role = req.headers["x-role"];
@@ -341,7 +335,7 @@ app.post("/api/reset-password", (req, res) => {
   }
 });
 
-// === 日誌查詢 API ===
+// === Logs API ===
 app.get("/logs", checkAdmin, (req, res) => {
   try {
     const rows = db
@@ -432,9 +426,7 @@ app.get("/transactions", (req, res) => {
   }
 });
 
-// === 使用者權限管理 APIs（僅限 admin） ===
-
-// 查詢所有使用者（不包含密碼與驗證碼等機密資訊）
+// === users APIs（僅限 admin） ===
 app.get("/users", checkAdmin, (req, res) => {
   try {
     const users = db
@@ -446,7 +438,6 @@ app.get("/users", checkAdmin, (req, res) => {
   }
 });
 
-// 修改指定使用者的角色
 app.put("/users/:id/role", checkAdmin, (req, res) => {
   const { role } = req.body;
   const validRoles = ["admin", "viewer"];
@@ -486,7 +477,7 @@ app.put("/users/:id/role", checkAdmin, (req, res) => {
   }
 });
 
-// === 全域錯誤處理（最底層一定要放） ===
+// === 全域錯誤處理 ===
 app.use((err, req, res, next) => {
   console.error("🔥 全域錯誤攔截器：", err);
   if (res.headersSent) return next(err);

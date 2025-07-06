@@ -2,13 +2,13 @@ import path from "path";
 import Database from "better-sqlite3";
 
 const dbPath = path.resolve("MYDB.db");
-console.log("✅ 目前連線的資料庫：", dbPath);
+console.log("目前連線的資料庫：", dbPath);
 const db = new Database(dbPath);
 
-// ✅ 建立資料表（若不存在）
 console.log("📦 準備建立資料表...");
 
-db.prepare(`
+db.prepare(
+  `
   CREATE TABLE IF NOT EXISTS products (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL,
@@ -18,15 +18,18 @@ db.prepare(`
     description TEXT,
     image TEXT
   )
-`).run();
+`
+).run();
 
-db.prepare(`
+db.prepare(
+  `
   CREATE TABLE IF NOT EXISTS users (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     username TEXT UNIQUE NOT NULL,
     password TEXT NOT NULL
   )
-`).run();
+`
+).run();
 
 const userColumns = [
   { name: "email", type: "TEXT" },
@@ -38,22 +41,27 @@ const userColumns = [
 ];
 
 for (const { name, type } of userColumns) {
-  const row = db.prepare(`
+  const row = db
+    .prepare(
+      `
     SELECT COUNT(*) as count FROM pragma_table_info('users') WHERE name = ?
-  `).get(name);
+  `
+    )
+    .get(name);
 
   if (row.count === 0) {
     try {
       db.prepare(`ALTER TABLE users ADD COLUMN ${name} ${type}`).run();
-      console.log(`✅ 已新增欄位：${name}`);
+      console.log(`已新增欄位：${name}`);
     } catch (err) {
-      console.error(`❌ 新增欄位 ${name} 失敗`, err);
+      console.error(`新增欄位 ${name} 失敗`, err);
     }
   }
 }
 
 try {
-  db.prepare(`
+  db.prepare(
+    `
     CREATE TABLE IF NOT EXISTS transactions (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       product_id INTEGER NOT NULL,
@@ -64,29 +72,33 @@ try {
       operator TEXT,
       FOREIGN KEY (product_id) REFERENCES products(id)
     )
-  `).run();
-  console.log("✅ 出入庫紀錄表 transactions 建立完成");
+  `
+  ).run();
+  console.log("出入庫紀錄表 transactions 建立完成");
 } catch (err) {
-  console.error("❌ 建立 transactions 表失敗", err);
+  console.error("建立 transactions 表失敗", err);
 }
 
-// ✅ 檢查 transactions 是否已有 operator 欄位，若無則補上
-const operatorRow = db.prepare(`
+const operatorRow = db
+  .prepare(
+    `
   SELECT COUNT(*) as count FROM pragma_table_info('transactions') WHERE name = 'operator'
-`).get();
+`
+  )
+  .get();
 
 if (operatorRow.count === 0) {
   try {
     db.prepare(`ALTER TABLE transactions ADD COLUMN operator TEXT`).run();
-    console.log("✅ 已新增欄位：operator");
+    console.log("已新增欄位：operator");
   } catch (err) {
-    console.error("❌ 新增 operator 欄位失敗", err);
+    console.error("新增 operator 欄位失敗", err);
   }
 }
 
-// ✅ logs 表
 try {
-  db.prepare(`
+  db.prepare(
+    `
     CREATE TABLE IF NOT EXISTS logs (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       username TEXT NOT NULL,
@@ -94,13 +106,13 @@ try {
       details TEXT,
       timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     )
-  `).run();
-  console.log("✅ 操作記錄表 logs 建立完成");
+  `
+  ).run();
+  console.log("操作記錄表 logs 建立完成");
 } catch (err) {
-  console.error("❌ 建立 logs 表失敗", err);
+  console.error("建立 logs 表失敗", err);
 }
 
-// ✅ 若 products 為空，就插入預設資料
 const productRow = db.prepare("SELECT COUNT(*) AS count FROM products").get();
 
 if (productRow.count === 0) {
@@ -129,21 +141,22 @@ if (productRow.count === 0) {
     "https://example.com/iphone15.jpg"
   );
 } else {
-  console.log("✅ products 資料已存在，跳過插入");
+  console.log("products 資料已存在，跳過插入");
 }
 
-// ✅ 插入預設 admin 使用者（不覆蓋）
 try {
-  db.prepare(`
+  db.prepare(
+    `
     INSERT OR IGNORE INTO users (username, password, email, role)
     VALUES (?, ?, ?, ?)
-  `).run("admin", "1234", "danny90628@gmail.com", "admin");
+  `
+  ).run("admin", "1234", "danny90628@gmail.com", "admin");
 
-  console.log("✅ 預設帳號 admin 建立完成（或已存在）");
+  console.log("預設帳號 admin 建立完成（或已存在）");
 } catch (err) {
-  console.error("❌ 插入預設使用者失敗", err);
+  console.error("插入預設使用者失敗", err);
 }
 
 db.close(() => {
-  console.log("✅ SQLite 初始化完成");
+  console.log("SQLite 初始化完成");
 });
