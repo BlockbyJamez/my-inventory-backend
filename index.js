@@ -33,7 +33,9 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 app.use("/uploads", express.static(uploadDir));
 
-const db = new Database("MYDB.db");
+const dbPath = process.env.RENDER ? "/render/data/MYDB.db" : path.resolve("MYDB.db");
+const db = new Database(dbPath);
+console.log("使用的資料庫位置：", dbPath);
 
 function logAction(username, action, details = null) {
   try {

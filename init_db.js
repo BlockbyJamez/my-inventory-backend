@@ -1,7 +1,7 @@
 import path from "path";
 import Database from "better-sqlite3";
 
-const dbPath = path.resolve("MYDB.db");
+const dbPath = process.env.RENDER ? "/render/data/MYDB.db" : path.resolve("MYDB.db");
 console.log("目前連線的資料庫：", dbPath);
 const db = new Database(dbPath);
 
