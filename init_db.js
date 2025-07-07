@@ -5,7 +5,7 @@ const dbPath = path.resolve("MYDB.db");
 console.log("目前連線的資料庫：", dbPath);
 const db = new Database(dbPath);
 
-console.log("📦 準備建立資料表...");
+console.log("準備建立資料表...");
 
 db.prepare(
   `
