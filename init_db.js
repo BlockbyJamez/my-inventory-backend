@@ -1,4 +1,5 @@
 import path from "path";
+import fs from "fs";
 import Database from "better-sqlite3";
 
 const dbPath = process.env.RENDER ? "/render/data/MYDB.db" : path.resolve("MYDB.db");
