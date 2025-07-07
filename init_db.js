@@ -2,6 +2,15 @@ import path from "path";
 import Database from "better-sqlite3";
 
 const dbPath = process.env.RENDER ? "/render/data/MYDB.db" : path.resolve("MYDB.db");
+
+if (process.env.RENDER) {
+  const dataDir = path.dirname(dbPath);
+  if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+    console.log("建立 /render/data 資料夾完成");
+  }
+}
+
 console.log("目前連線的資料庫：", dbPath);
 const db = new Database(dbPath);
 
