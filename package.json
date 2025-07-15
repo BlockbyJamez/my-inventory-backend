@@ -4,7 +4,8 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node index.js",
+    "prepare": "npm install pg dotenv"
   },
   "keywords": [],
   "author": "",
@@ -14,8 +15,10 @@
     "better-sqlite3": "^12.2.0",
     "connect-timeout": "^1.9.0",
     "cors": "^2.8.5",
+    "dotenv": "^17.0.1",
     "express": "^5.1.0",
     "multer": "^2.0.1",
-    "nodemailer": "^7.0.4"
+    "nodemailer": "^7.0.4",
+    "pg": "^8.11.3"
   }
 }

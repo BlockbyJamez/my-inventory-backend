@@ -1,18 +1,24 @@
 import express from "express";
 import cors from "cors";
-import Database from "better-sqlite3";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
 import nodemailer from "nodemailer";
 import timeout from "connect-timeout";
 import "./init_db.js";
+import pkg from "pg";
+const { Pool } = pkg;
+import dotenv from "dotenv";
+dotenv.config();
+
+const pool = new Pool();
+console.log("已連接 PostgreSQL");
 
 const app = express();
 const PORT = process.env.PORT || 10000;
 
 app.listen(PORT, () => {
-  console.log(`✅ Backend running on http://localhost:${PORT}`);
+  console.log(`Backend running on http://localhost:${PORT}`);
 });
 
 app.use(cors());
@@ -33,20 +39,17 @@ const storage = multer.diskStorage({
 const upload = multer({ storage });
 app.use("/uploads", express.static(uploadDir));
 
-const dbPath = process.env.RENDER ? "/render/data/MYDB.db" : path.resolve("MYDB.db");
-const db = new Database(dbPath);
-console.log("使用的資料庫位置：", dbPath);
+async function logAction(username, action, details = null) {
+  const query = `
+    INSERT INTO logs (username, action, details)
+    VALUES ($1, $2, $3)
+  `;
+  const values = [username, action, details ? JSON.stringify(details) : null];
 
-function logAction(username, action, details = null) {
   try {
-    db.prepare(
-      `
-      INSERT INTO logs (username, action, details)
-      VALUES (?, ?, ?)
-    `
-    ).run(username, action, details ? JSON.stringify(details) : null);
+    await pool.query(query, values);
   } catch (err) {
-    console.error("❌ 操作紀錄寫入失敗:", err);
+    console.error("操作紀錄寫入失敗:", err);
   }
 }
 
@@ -67,42 +70,53 @@ function checkAdmin(req, res, next) {
 }
 
 // === Product APIs ===
-app.get("/products", (req, res) => {
+app.get("/products", async (req, res) => {
   try {
-    const rows = db.prepare(`SELECT * FROM products`).all();
-    res.json(rows);
+    const result = await pool.query(`SELECT * FROM products ORDER BY id`);
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.get("/products/:id", (req, res) => {
+app.get("/products/:id", async (req, res) => {
   try {
-    const row = db
-      .prepare(`SELECT * FROM products WHERE id = ?`)
-      .get(req.params.id);
-    if (row) res.json(row);
-    else res.status(404).json({ error: "Product not found" });
+    const result = await pool.query(`SELECT * FROM products WHERE id = $1`, [
+      req.params.id,
+    ]);
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Product not found" });
+    }
+    res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post("/products", checkAdmin, (req, res) => {
+app.post("/products", checkAdmin, async (req, res) => {
   const { name, stock, price, category, description, image } = req.body;
   const username = req.headers["x-username"] || "unknown";
 
   try {
-    const stmt = db.prepare(`
+    const insertQuery = `
       INSERT INTO products (name, stock, price, category, description, image)
-      VALUES (?, ?, ?, ?, ?, ?)
-    `);
-    const result = stmt.run(name, stock, price, category, description, image);
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING id
+    `;
+    const result = await pool.query(insertQuery, [
+      name,
+      stock,
+      price,
+      category,
+      description,
+      image,
+    ]);
+    const id = result.rows[0].id;
 
-    logAction(username, "add_product", { id: result.lastInsertRowid, name });
+    await logAction(username, "add_product", { id, name });
 
     res.status(201).json({
-      id: result.lastInsertRowid,
+      id,
       name,
       stock,
       price,
@@ -115,31 +129,26 @@ app.post("/products", checkAdmin, (req, res) => {
   }
 });
 
-app.put("/products/:id", checkAdmin, (req, res) => {
+app.put("/products/:id", checkAdmin, async (req, res) => {
   const { name, stock, price, category, description, image } = req.body;
   const username = req.headers["x-username"] || "unknown";
 
   try {
-    const stmt = db.prepare(`
+    const result = await pool.query(
+      `
       UPDATE products
-      SET name = ?, stock = ?, price = ?, category = ?, description = ?, image = ?
-      WHERE id = ?
-    `);
-    const result = stmt.run(
-      name,
-      stock,
-      price,
-      category,
-      description,
-      image,
-      req.params.id
+      SET name = $1, stock = $2, price = $3, category = $4, description = $5, image = $6
+      WHERE id = $7
+      RETURNING *
+    `,
+      [name, stock, price, category, description, image, req.params.id]
     );
 
-    if (result.changes === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: "Product not found" });
     }
 
-    logAction(username, "update_product", {
+    await logAction(username, "update_product", {
       id: Number(req.params.id),
       name,
       stock,
@@ -149,61 +158,61 @@ app.put("/products/:id", checkAdmin, (req, res) => {
       image,
     });
 
-    res.json({
-      id: Number(req.params.id),
-      name,
-      stock,
-      price,
-      category,
-      description,
-      image,
-    });
+    res.json(result.rows[0]);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.delete("/products/:id", checkAdmin, (req, res) => {
+app.delete("/products/:id", checkAdmin, async (req, res) => {
   const username = req.headers["x-username"] || "unknown";
 
   try {
-    const result = db
-      .prepare(`DELETE FROM products WHERE id = ?`)
-      .run(req.params.id);
+    const result = await pool.query(`DELETE FROM products WHERE id = $1`, [
+      req.params.id,
+    ]);
 
-    if (result.changes === 0) {
+    if (result.rowCount === 0) {
       return res.status(404).json({ error: "Product not found" });
     }
 
-    logAction(username, "delete_product", { id: Number(req.params.id) });
+    await logAction(username, "delete_product", {
+      id: Number(req.params.id),
+    });
+
     res.json({ id: Number(req.params.id) });
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
 
-app.post("/upload", upload.single("image"), (req, res) => {
+app.post("/upload", upload.single("image"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
-  const imageUrl = `${req.protocol}://${req.get("host")}/uploads/${
-    req.file.filename
-  }`;
+
+  const imageUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+
+  const username = req.headers["x-username"] || "unknown";
+  await logAction(username, "upload_image", { filename: req.file.filename });
+
   res.json({ imageUrl });
 });
 
 // === Auth APIs ===
-app.post("/api/login", (req, res) => {
+app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
   if (!username || !password)
     return res.status(400).json({ error: "帳號與密碼不得為空" });
 
   try {
-    const row = db
-      .prepare(`SELECT * FROM users WHERE username = ? AND password = ?`)
-      .get(username, password);
+    const result = await pool.query(
+      `SELECT * FROM users WHERE username = $1 AND password = $2`,
+      [username, password]
+    );
 
-    if (row) {
-      logAction(username, "login_success", { username });
-      res.json({ success: true, username: row.username, role: row.role });
+    if (result.rows.length > 0) {
+      const user = result.rows[0];
+      await logAction(username, "login_success", { username });
+      res.json({ success: true, username: user.username, role: user.role });
     } else {
       res.status(401).json({ error: "帳號或密碼錯誤" });
     }
@@ -212,37 +221,37 @@ app.post("/api/login", (req, res) => {
   }
 });
 
-app.post("/api/register", (req, res) => {
+app.post("/api/register", async (req, res) => {
   const { username, password, email } = req.body;
   if (!username || !password || !email)
     return res.status(400).json({ error: "帳號、密碼與信箱不得為空" });
 
   try {
-    const stmt = db.prepare(
-      `INSERT INTO users (username, password, email, role) VALUES (?, ?, ?, 'viewer')`
+    const result = await pool.query(
+      `INSERT INTO users (username, password, email, role) VALUES ($1, $2, $3, 'viewer') RETURNING id`,
+      [username, password, email]
     );
-    const result = stmt.run(username, password, email);
 
-    logAction(username, "register_user", { username });
-    res.status(201).json({ success: true, userId: result.lastInsertRowid });
+    await logAction(username, "register_user", { username });
+
+    res.status(201).json({ success: true, userId: result.rows[0].id });
   } catch (err) {
-    if (err.message.includes("UNIQUE constraint failed")) {
+    if (err.code === "23505") {
       return res.status(409).json({ error: "帳號已存在" });
     }
     res.status(500).json({ error: "伺服器錯誤" });
   }
 });
 
-app.post("/api/forgot-password", (req, res) => {
+app.post("/api/forgot-password", async (req, res) => {
   const { identifier } = req.body;
   if (!identifier) return res.status(400).json({ error: "請提供帳號" });
 
   try {
-    const user = db
-      .prepare(`SELECT * FROM users WHERE username = ?`)
-      .get(identifier);
-    if (!user) return res.status(404).json({ error: "查無此帳號" });
+    const result = await pool.query(`SELECT * FROM users WHERE username = $1`, [identifier]);
+    if (result.rows.length === 0) return res.status(404).json({ error: "查無此帳號" });
 
+    const user = result.rows[0];
     const code = Math.floor(100000 + Math.random() * 900000).toString();
     const expires = Date.now() + 60 * 1000;
 
@@ -261,16 +270,19 @@ app.post("/api/forgot-password", (req, res) => {
       text: `您好，您的驗證碼為：${code}，1 分鐘內有效。\n帳號：${user.username}`,
     };
 
-    transporter.sendMail(mailOptions, (error) => {
+    transporter.sendMail(mailOptions, async (error) => {
       if (error) return res.status(500).json({ error: "寄信失敗" });
 
-      db.prepare(
+      await pool.query(
         `
         UPDATE users
-        SET email_verification_code = ?, email_code_expires = ?
-        WHERE id = ?
-      `
-      ).run(code, expires, user.id);
+        SET email_verification_code = $1, email_code_expires = $2
+        WHERE id = $3
+      `,
+        [code, expires, user.id]
+      );
+
+      await logAction(user.username, "send_verification_code", { email: user.email });
 
       res.json({ message: "已發送驗證碼至註冊信箱" });
     });
@@ -279,22 +291,21 @@ app.post("/api/forgot-password", (req, res) => {
   }
 });
 
-app.post("/api/verify-code", (req, res) => {
+app.post("/api/verify-code", async (req, res) => {
   const { username, code } = req.body;
   if (!username || !code)
     return res.status(400).json({ error: "缺少帳號或驗證碼" });
 
   try {
-    const user = db
-      .prepare(
-        `
+    const result = await pool.query(
+      `
       SELECT * FROM users
-      WHERE username = ? AND email_verification_code = ? AND email_code_expires > ?
-    `
-      )
-      .get(username, code, Date.now());
+      WHERE username = $1 AND email_verification_code = $2 AND email_code_expires > $3
+    `,
+      [username, code, Date.now()]
+    );
 
-    if (!user) {
+    if (result.rows.length === 0) {
       return res.status(400).json({ error: "驗證碼錯誤或已過期" });
     }
 
@@ -304,32 +315,36 @@ app.post("/api/verify-code", (req, res) => {
   }
 });
 
-app.post("/api/reset-password", (req, res) => {
+app.post("/api/reset-password", async (req, res) => {
   const { code, newPassword } = req.body;
   if (!code || !newPassword)
     return res.status(400).json({ error: "缺少驗證碼或新密碼" });
 
   try {
-    const user = db
-      .prepare(
-        `
+    const result = await pool.query(
+      `
       SELECT * FROM users
-      WHERE email_verification_code = ? AND email_code_expires > ?
-    `
-      )
-      .get(code, Date.now());
+      WHERE email_verification_code = $1 AND email_code_expires > $2
+    `,
+      [code, Date.now()]
+    );
 
-    if (!user) {
+    if (result.rows.length === 0) {
       return res.status(400).json({ error: "驗證碼錯誤或已過期" });
     }
 
-    db.prepare(
+    const userId = result.rows[0].id;
+
+    await pool.query(
       `
       UPDATE users
-      SET password = ?, email_verification_code = NULL, email_code_expires = NULL
-      WHERE id = ?
-    `
-    ).run(newPassword, user.id);
+      SET password = $1, email_verification_code = NULL, email_code_expires = NULL
+      WHERE id = $2
+    `,
+      [newPassword, userId]
+    );
+
+    await logAction(result.rows[0].username, "reset_password");
 
     res.json({ message: "密碼重設成功，請重新登入" });
   } catch (err) {
@@ -338,26 +353,23 @@ app.post("/api/reset-password", (req, res) => {
 });
 
 // === Logs API ===
-app.get("/logs", checkAdmin, (req, res) => {
+app.get("/logs", checkAdmin, async (req, res) => {
   try {
-    const rows = db
-      .prepare(
-        `
+    const result = await pool.query(
+      `
       SELECT id, username, action, details, timestamp
       FROM logs
       ORDER BY timestamp DESC
       LIMIT 100
     `
-      )
-      .all();
-
-    res.json(rows);
+    );
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: "查詢失敗" });
   }
 });
 
-app.post("/transactions", checkAdmin, (req, res) => {
+app.post("/transactions", checkAdmin, async (req, res) => {
   const { product_id, type, quantity, note } = req.body;
   const operator = req.headers["x-username"] || "unknown";
 
@@ -365,82 +377,93 @@ app.post("/transactions", checkAdmin, (req, res) => {
     return res.status(400).json({ error: "參數錯誤" });
   }
 
+  const client = await pool.connect();
   try {
-    const productRow = db
-      .prepare(`SELECT name FROM products WHERE id = ?`)
-      .get(product_id);
-    const productName = productRow?.name || `ID ${product_id}`;
+    await client.query("BEGIN");
 
-    const updateStmt =
-      type === "in"
-        ? db.prepare(`UPDATE products SET stock = stock + ? WHERE id = ?`)
-        : db.prepare(
-            `UPDATE products SET stock = stock - ? WHERE id = ? AND stock >= ?`
-          );
+    const productResult = await client.query(
+      `SELECT name, stock FROM products WHERE id = $1`,
+      [product_id]
+    );
 
-    const result =
-      type === "in"
-        ? updateStmt.run(quantity, product_id)
-        : updateStmt.run(quantity, product_id, quantity);
-
-    if (result.changes === 0) {
-      return res.status(400).json({ error: "庫存不足或商品不存在" });
+    if (productResult.rows.length === 0) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "商品不存在" });
     }
 
-    const insertStmt = db.prepare(`
-      INSERT INTO transactions (product_id, type, quantity, note, operator)
-      VALUES (?, ?, ?, ?, ?)
-    `);
-    const info = insertStmt.run(product_id, type, quantity, note, operator);
+    const productName = productResult.rows[0].name;
 
-    logAction(operator, "add_transaction", {
+    if (type === "out" && productResult.rows[0].stock < quantity) {
+      await client.query("ROLLBACK");
+      return res.status(400).json({ error: "庫存不足" });
+    }
+
+    const updateQuery =
+      type === "in"
+        ? `UPDATE products SET stock = stock + $1 WHERE id = $2`
+        : `UPDATE products SET stock = stock - $1 WHERE id = $2`;
+    await client.query(updateQuery, [quantity, product_id]);
+
+    const insertResult = await client.query(
+      `
+      INSERT INTO transactions (product_id, type, quantity, note, operator)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id
+    `,
+      [product_id, type, quantity, note, operator]
+    );
+
+    await logAction(operator, "add_transaction", {
       product_id,
       type,
       quantity,
       productName,
     });
 
-    res
-      .status(201)
-      .json({ success: true, transaction_id: info.lastInsertRowid });
+    await client.query("COMMIT");
+
+    res.status(201).json({
+      success: true,
+      transaction_id: insertResult.rows[0].id,
+    });
   } catch (err) {
-    console.error("❌ 出入庫處理錯誤:", err);
+    await client.query("ROLLBACK");
+    console.error("出入庫處理錯誤:", err);
     res.status(500).json({ error: "處理失敗" });
+  } finally {
+    client.release();
   }
 });
 
-app.get("/transactions", (req, res) => {
+app.get("/transactions", async (req, res) => {
   try {
-    const rows = db
-      .prepare(
-        `
+    const result = await pool.query(
+      `
       SELECT t.*, p.name AS product_name
       FROM transactions t
       JOIN products p ON t.product_id = p.id
       ORDER BY t.timestamp DESC
     `
-      )
-      .all();
-
-    res.json(rows);
+    );
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: "查詢失敗" });
   }
 });
 
 // === users APIs（僅限 admin） ===
-app.get("/users", checkAdmin, (req, res) => {
+app.get("/users", checkAdmin, async (req, res) => {
   try {
-    const users = db
-      .prepare(`SELECT id, username, email, role FROM users`)
-      .all();
-    res.json(users);
+    const result = await pool.query(
+      `SELECT id, username, email, role FROM users`
+    );
+    res.json(result.rows);
   } catch (err) {
     res.status(500).json({ error: "查詢使用者失敗" });
   }
 });
 
-app.put("/users/:id/role", checkAdmin, (req, res) => {
+app.put("/users/:id/role", checkAdmin, async (req, res) => {
   const { role } = req.body;
   const validRoles = ["admin", "viewer"];
   const currentUser = req.headers["x-username"] || "unknown";
@@ -450,26 +473,32 @@ app.put("/users/:id/role", checkAdmin, (req, res) => {
   }
 
   try {
-    const userRow = db
-      .prepare(`SELECT username FROM users WHERE id = ?`)
-      .get(req.params.id);
-    if (!userRow) {
+    const result = await pool.query(
+      `SELECT username FROM users WHERE id = $1`,
+      [req.params.id]
+    );
+
+    if (result.rows.length === 0) {
       return res.status(404).json({ error: "找不到使用者" });
     }
 
-    if (userRow.username === currentUser && role !== "admin") {
+    const targetUsername = result.rows[0].username;
+
+    if (targetUsername === currentUser && role !== "admin") {
       return res.status(403).json({ error: "不能將自己的權限改為 viewer" });
     }
 
-    const result = db
-      .prepare(`UPDATE users SET role = ? WHERE id = ?`)
-      .run(role, req.params.id);
-    if (result.changes === 0) {
+    const updateResult = await pool.query(
+      `UPDATE users SET role = $1 WHERE id = $2`,
+      [role, req.params.id]
+    );
+
+    if (updateResult.rowCount === 0) {
       return res.status(404).json({ error: "找不到使用者" });
     }
 
-    logAction(currentUser, "update_permissions", {
-      username: userRow.username,
+    await logAction(currentUser, "update_permissions", {
+      username: targetUsername,
       newRole: role,
     });
 
