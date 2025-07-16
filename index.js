@@ -20,7 +20,12 @@ app.listen(PORT, () => {
   console.log(`Backend running on http://localhost:${PORT}`);
 });
 
-app.use(cors());
+app.use(cors({
+  origin: ["https://blockbyjamez.github.io"],
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type"],
+  credentials: true
+}));
 app.use(express.json());
 app.use(timeout("10s"));
 
