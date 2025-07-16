@@ -5,6 +5,7 @@ import path from "path";
 import fs from "fs";
 import nodemailer from "nodemailer";
 import timeout from "connect-timeout";
+import bcrypt from "bcrypt";
 import "./init_db.js";
 import pool from "./db.js";
 import { logAction } from "./log.js";
@@ -196,20 +197,26 @@ app.post("/api/login", async (req, res) => {
 
   try {
     const result = await pool.query(
-      `SELECT * FROM users WHERE username = $1 AND password = $2`,
-      [username, password]
+      `SELECT * FROM users WHERE username = $1`,
+      [username]
     );
 
-    if (result.rows.length > 0) {
-      const user = result.rows[0];
-      await logAction(username, "login_success", { username });
-      res.json({ success: true, username: user.username, role: user.role });
-    } else {
-      res.status(401).json({ error: "帳號或密碼錯誤" });
+    if (result.rows.length === 0) {
+      return res.status(401).json({ error: "帳號或密碼錯誤" });
     }
+
+    const user = result.rows[0];
+
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      return res.status(401).json({ error: "帳號或密碼錯誤" });
+    }
+
+    await logAction(username, "login_success", { username });
+    res.json({ success: true, username: user.username, role: user.role });
   } catch (err) {
     console.error("登入錯誤：", err);
-    res.status(500).json({ error: err.message });
+    res.status(500).json({ error: "伺服器錯誤" });
   }
 });
 
@@ -224,7 +231,7 @@ app.post("/api/send-code", async (req, res) => {
     }
 
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expires = Date.now() + 5 * 60 * 1000;
+    const expires = Date.now() + 3 * 60 * 1000;
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -238,7 +245,7 @@ app.post("/api/send-code", async (req, res) => {
       from: '"MY系統" <danny90628@gmail.com>',
       to: email,
       subject: "註冊驗證碼",
-      text: `您好，您的註冊驗證碼為：${code}，5 分鐘內有效。\n帳號：${username}`,
+      text: `您好，您的註冊驗證碼為：${code}，3 分鐘內有效。\n帳號：${username}`,
     };
 
     transporter.sendMail(mailOptions, async (error) => {
@@ -268,6 +275,8 @@ app.post("/api/send-code", async (req, res) => {
   }
 });
 
+import bcrypt from "bcrypt";
+
 app.post("/api/register", async (req, res) => {
   const { username, password, email, code } = req.body;
   if (!username || !password || !email || !code)
@@ -286,6 +295,8 @@ app.post("/api/register", async (req, res) => {
       return res.status(400).json({ error: "驗證碼錯誤或已過期" });
     }
 
+    const hashedPassword = await bcrypt.hash(password, 10);
+
     await pool.query(
       `
       UPDATE users
@@ -294,7 +305,7 @@ app.post("/api/register", async (req, res) => {
           email_code_expires = NULL
       WHERE username = $2
     `,
-      [password, username]
+      [hashedPassword, username]
     );
 
     await logAction(username, "register_user", { email });
@@ -315,7 +326,7 @@ app.post("/api/forgot-password", async (req, res) => {
 
     const user = result.rows[0];
     const code = Math.floor(100000 + Math.random() * 900000).toString();
-    const expires = Date.now() + 60 * 1000;
+    const expires = Date.now() + 3 * 60 * 1000;
 
     const transporter = nodemailer.createTransport({
       service: "gmail",
@@ -329,7 +340,7 @@ app.post("/api/forgot-password", async (req, res) => {
       from: '"MY系統客服" <danny90628@gmail.com>',
       to: user.email,
       subject: "密碼重設驗證碼",
-      text: `您好，您的驗證碼為：${code}，1 分鐘內有效。\n帳號：${user.username}`,
+      text: `您好，您的驗證碼為：${code}，3 分鐘內有效。\n帳號：${user.username}`,
     };
 
     transporter.sendMail(mailOptions, async (error) => {
@@ -396,20 +407,25 @@ app.post("/api/reset-password", async (req, res) => {
     }
 
     const userId = result.rows[0].id;
+    const username = result.rows[0].username;
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
 
     await pool.query(
       `
       UPDATE users
-      SET password = $1, email_verification_code = NULL, email_code_expires = NULL
+      SET password = $1,
+          email_verification_code = NULL,
+          email_code_expires = NULL
       WHERE id = $2
     `,
-      [newPassword, userId]
+      [hashedPassword, userId]
     );
 
-    await logAction(result.rows[0].username, "reset_password");
-
+    await logAction(username, "reset_password");
     res.json({ message: "密碼重設成功，請重新登入" });
   } catch (err) {
+    console.error("密碼重設失敗：", err);
     res.status(500).json({ error: "更新密碼失敗" });
   }
 });
