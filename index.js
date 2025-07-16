@@ -275,8 +275,6 @@ app.post("/api/send-code", async (req, res) => {
   }
 });
 
-import bcrypt from "bcrypt";
-
 app.post("/api/register", async (req, res) => {
   const { username, password, email, code } = req.body;
   if (!username || !password || !email || !code)
