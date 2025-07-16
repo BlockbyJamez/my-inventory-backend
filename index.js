@@ -8,6 +8,7 @@ import timeout from "connect-timeout";
 import bcrypt from "bcrypt";
 import "./init_db.js";
 import pool from "./db.js";
+import upload from "./upload.js";
 import { logAction } from "./log.js";
 import dotenv from "dotenv";
 dotenv.config();
@@ -21,12 +22,14 @@ app.listen(PORT, () => {
   console.log(`Backend running on http://localhost:${PORT}`);
 });
 
-app.use(cors({
-  origin: ["https://blockbyjamez.github.io"],
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "x-username", "x-role"],
-  credentials: true
-}));
+app.use(
+  cors({
+    origin: ["https://blockbyjamez.github.io"],
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "x-username", "x-role"],
+    credentials: true,
+  })
+);
 app.use(express.json());
 app.use(timeout("10s"));
 
@@ -178,12 +181,14 @@ app.delete("/products/:id", checkAdmin, async (req, res) => {
 });
 
 app.post("/upload", upload.single("image"), async (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "No file uploaded" });
+  if (!req.file || !req.file.path) {
+    return res.status(400).json({ error: "圖片上傳失敗" });
+  }
 
-  const imageUrl = `https://${req.get("host")}/uploads/${req.file.filename}`;
+  const imageUrl = req.file.path;
 
   const username = req.headers["x-username"] || "unknown";
-  await logAction(username, "upload_image", { filename: req.file.filename });
+  await logAction(username, "upload_image", { imageUrl });
 
   res.json({ imageUrl });
 });
@@ -196,10 +201,9 @@ app.post("/api/login", async (req, res) => {
     return res.status(400).json({ error: "帳號與密碼不得為空" });
 
   try {
-    const result = await pool.query(
-      `SELECT * FROM users WHERE username = $1`,
-      [username]
-    );
+    const result = await pool.query(`SELECT * FROM users WHERE username = $1`, [
+      username,
+    ]);
 
     if (result.rows.length === 0) {
       return res.status(401).json({ error: "帳號或密碼錯誤" });
@@ -222,10 +226,13 @@ app.post("/api/login", async (req, res) => {
 
 app.post("/api/send-code", async (req, res) => {
   const { username, email } = req.body;
-  if (!username || !email) return res.status(400).json({ error: "請提供帳號與信箱" });
+  if (!username || !email)
+    return res.status(400).json({ error: "請提供帳號與信箱" });
 
   try {
-    const exists = await pool.query(`SELECT 1 FROM users WHERE username = $1`, [username]);
+    const exists = await pool.query(`SELECT 1 FROM users WHERE username = $1`, [
+      username,
+    ]);
     if (exists.rows.length > 0) {
       return res.status(409).json({ error: "帳號已存在" });
     }
@@ -319,8 +326,11 @@ app.post("/api/forgot-password", async (req, res) => {
   if (!identifier) return res.status(400).json({ error: "請提供帳號" });
 
   try {
-    const result = await pool.query(`SELECT * FROM users WHERE username = $1`, [identifier]);
-    if (result.rows.length === 0) return res.status(404).json({ error: "查無此帳號" });
+    const result = await pool.query(`SELECT * FROM users WHERE username = $1`, [
+      identifier,
+    ]);
+    if (result.rows.length === 0)
+      return res.status(404).json({ error: "查無此帳號" });
 
     const user = result.rows[0];
     const code = Math.floor(100000 + Math.random() * 900000).toString();
@@ -353,7 +363,9 @@ app.post("/api/forgot-password", async (req, res) => {
         [code, expires, user.id]
       );
 
-      await logAction(user.username, "send_verification_code", { email: user.email });
+      await logAction(user.username, "send_verification_code", {
+        email: user.email,
+      });
 
       res.json({ message: "已發送驗證碼至註冊信箱" });
     });
