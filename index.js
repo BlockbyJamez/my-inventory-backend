@@ -208,25 +208,95 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
+app.post("/api/send-code", async (req, res) => {
+  const { username, email } = req.body;
+  if (!username || !email) return res.status(400).json({ error: "請提供帳號與信箱" });
+
+  try {
+    const exists = await pool.query(`SELECT 1 FROM users WHERE username = $1`, [username]);
+    if (exists.rows.length > 0) {
+      return res.status(409).json({ error: "帳號已存在" });
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expires = Date.now() + 5 * 60 * 1000;
+
+    const transporter = nodemailer.createTransport({
+      service: "gmail",
+      auth: {
+        user: "danny90628@gmail.com",
+        pass: "dnndvufcudqjdckn",
+      },
+    });
+
+    const mailOptions = {
+      from: '"MY系統" <danny90628@gmail.com>',
+      to: email,
+      subject: "註冊驗證碼",
+      text: `您好，您的註冊驗證碼為：${code}，5 分鐘內有效。\n帳號：${username}`,
+    };
+
+    transporter.sendMail(mailOptions, async (error) => {
+      if (error) {
+        console.error("寄信失敗", error);
+        return res.status(500).json({ error: "無法發送驗證信" });
+      }
+
+      await pool.query(
+        `
+        INSERT INTO users (username, email, email_verification_code, email_code_expires, role)
+        VALUES ($1, $2, $3, $4, 'viewer')
+        ON CONFLICT (username) DO UPDATE
+        SET email = EXCLUDED.email,
+            email_verification_code = EXCLUDED.email_verification_code,
+            email_code_expires = EXCLUDED.email_code_expires
+      `,
+        [username, email, code, expires]
+      );
+
+      await logAction(username, "send_register_code", { email });
+      res.json({ message: "驗證碼已發送至信箱" });
+    });
+  } catch (err) {
+    console.error("寄送驗證碼失敗：", err);
+    res.status(500).json({ error: "寄送驗證碼失敗" });
+  }
+});
+
 app.post("/api/register", async (req, res) => {
-  const { username, password, email } = req.body;
-  if (!username || !password || !email)
-    return res.status(400).json({ error: "帳號、密碼與信箱不得為空" });
+  const { username, password, email, code } = req.body;
+  if (!username || !password || !email || !code)
+    return res.status(400).json({ error: "請填寫完整資訊" });
 
   try {
     const result = await pool.query(
-      `INSERT INTO users (username, password, email, role) VALUES ($1, $2, $3, 'viewer') RETURNING id`,
-      [username, password, email]
+      `
+      SELECT * FROM users
+      WHERE username = $1 AND email = $2 AND email_verification_code = $3 AND email_code_expires > $4
+    `,
+      [username, email, code, Date.now()]
     );
 
-    await logAction(username, "register_user", { username });
-
-    res.status(201).json({ success: true, userId: result.rows[0].id });
-  } catch (err) {
-    if (err.code === "23505") {
-      return res.status(409).json({ error: "帳號已存在" });
+    if (result.rows.length === 0) {
+      return res.status(400).json({ error: "驗證碼錯誤或已過期" });
     }
-    res.status(500).json({ error: "伺服器錯誤" });
+
+    await pool.query(
+      `
+      UPDATE users
+      SET password = $1,
+          email_verification_code = NULL,
+          email_code_expires = NULL
+      WHERE username = $2
+    `,
+      [password, username]
+    );
+
+    await logAction(username, "register_user", { email });
+    res.status(201).json({ success: true, message: "註冊成功" });
+  } catch (err) {
+    console.error("註冊失敗：", err);
+    res.status(500).json({ error: "註冊失敗" });
   }
 });
 
