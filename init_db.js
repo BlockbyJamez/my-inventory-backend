@@ -1,12 +1,16 @@
 // init_db.js
 import dotenv from "dotenv";
 import pool from "./db.js";
+import bcrypt from "bcrypt";
 dotenv.config();
 
 console.log("正在初始化 PostgreSQL 資料庫...");
 
 async function initDB() {
   try {
+
+    const hashedPassword = await bcrypt.hash("1234", 10);
+
     await pool.query(`
       CREATE TABLE IF NOT EXISTS products (
         id SERIAL PRIMARY KEY,
@@ -73,7 +77,7 @@ async function initDB() {
       INSERT INTO users (username, password, email, role)
       VALUES ('admin', '1234', 'danny90628@gmail.com', 'admin')
       ON CONFLICT (username) DO NOTHING
-    `);
+    `, [hashedPassword]);
 
     console.log("資料庫初始化完成！");
   } catch (err) {
