@@ -199,6 +199,7 @@ app.post("/upload", upload.single("image"), async (req, res) => {
 
 // === Auth APIs ===
 app.post("/api/login", async (req, res) => {
+  console.log("收到登入請求:", req.body);
   const { username, password } = req.body;
   if (!username || !password)
     return res.status(400).json({ error: "帳號與密碼不得為空" });
