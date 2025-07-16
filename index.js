@@ -6,12 +6,11 @@ import fs from "fs";
 import nodemailer from "nodemailer";
 import timeout from "connect-timeout";
 import "./init_db.js";
-import pkg from "pg";
-const { Pool } = pkg;
+import pool from "./db.js";
+import { logAction } from "./log.js";
 import dotenv from "dotenv";
 dotenv.config();
 
-const pool = new Pool();
 console.log("已連接 PostgreSQL");
 
 const app = express();
@@ -38,20 +37,6 @@ const storage = multer.diskStorage({
 });
 const upload = multer({ storage });
 app.use("/uploads", express.static(uploadDir));
-
-async function logAction(username, action, details = null) {
-  const query = `
-    INSERT INTO logs (username, action, details)
-    VALUES ($1, $2, $3)
-  `;
-  const values = [username, action, details ? JSON.stringify(details) : null];
-
-  try {
-    await pool.query(query, values);
-  } catch (err) {
-    console.error("操作紀錄寫入失敗:", err);
-  }
-}
 
 app.get("/ping", (req, res) => {
   res.send("pong");
