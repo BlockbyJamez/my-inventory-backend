@@ -180,7 +180,7 @@ app.delete("/products/:id", checkAdmin, async (req, res) => {
 app.post("/upload", upload.single("image"), async (req, res) => {
   if (!req.file) return res.status(400).json({ error: "No file uploaded" });
 
-  const imageUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+  const imageUrl = `https://${req.get("host")}/uploads/${req.file.filename}`;
 
   const username = req.headers["x-username"] || "unknown";
   await logAction(username, "upload_image", { filename: req.file.filename });
