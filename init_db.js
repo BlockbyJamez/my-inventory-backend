@@ -78,8 +78,6 @@ async function initDB() {
     console.log("資料庫初始化完成！");
   } catch (err) {
     console.error("初始化資料庫失敗：", err);
-  } finally {
-    await pool.end();
   }
 }
 
