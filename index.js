@@ -24,7 +24,7 @@ app.listen(PORT, () => {
 app.use(cors({
   origin: ["https://blockbyjamez.github.io"],
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type"],
+  allowedHeaders: ["Content-Type", "x-username"],
   credentials: true
 }));
 app.use(express.json());
