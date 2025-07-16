@@ -173,16 +173,20 @@ app.delete("/products/:id", checkAdmin, async (req, res) => {
 });
 
 app.post("/upload", upload.single("image"), async (req, res) => {
-  if (!req.file || !req.file.path) {
-    return res.status(400).json({ error: "圖片上傳失敗" });
+  try {
+    if (!req.file || !req.file.path) {
+      return res.status(400).json({ error: "圖片上傳失敗" });
+    }
+
+    const imageUrl = req.file.path;
+    const username = req.headers["x-username"] || "unknown";
+    await logAction(username, "upload_image", { imageUrl });
+
+    res.json({ imageUrl });
+  } catch (err) {
+    console.error("上傳錯誤：", err);
+    res.status(500).json({ error: "系統錯誤" });
   }
-
-  const imageUrl = req.file.path;
-
-  const username = req.headers["x-username"] || "unknown";
-  await logAction(username, "upload_image", { imageUrl });
-
-  res.json({ imageUrl });
 });
 
 // === Auth APIs ===
