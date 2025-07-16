@@ -75,9 +75,9 @@ async function initDB() {
 
     await pool.query(`
       INSERT INTO users (username, password, email, role)
-      VALUES ('admin', '1234', 'danny90628@gmail.com', 'admin')
+      VALUES ($1, $2, $3, $4)
       ON CONFLICT (username) DO NOTHING
-    `, [hashedPassword]);
+    `, ['admin', hashedPassword, 'danny90628@gmail.com', 'admin']);
 
     console.log("資料庫初始化完成！");
   } catch (err) {
