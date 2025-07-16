@@ -217,6 +217,7 @@ app.post("/api/login", async (req, res) => {
       res.status(401).json({ error: "帳號或密碼錯誤" });
     }
   } catch (err) {
+    console.error("登入錯誤：", err);
     res.status(500).json({ error: err.message });
   }
 });
