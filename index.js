@@ -1,7 +1,5 @@
 import express from "express";
 import cors from "cors";
-import multer from "multer";
-import path from "path";
 import fs from "fs";
 import nodemailer from "nodemailer";
 import timeout from "connect-timeout";
@@ -32,13 +30,6 @@ app.use(
 );
 app.use(express.json());
 app.use(timeout("10s"));
-
-const uploadDir = "uploads";
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
-}
-app.use("/uploads", express.static(uploadDir));
-
 app.get("/ping", (req, res) => {
   res.send("pong");
 });

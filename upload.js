@@ -1,4 +1,3 @@
-// upload.js
 import multer from "multer";
 import { v2 as cloudinary } from "cloudinary";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
@@ -14,13 +13,12 @@ cloudinary.config({
 
 const storage = new CloudinaryStorage({
   cloudinary,
-  params: {
+  params: async (req, file) => ({
     folder: "inventory-images",
-    allowed_formats: ["jpg", "jpeg", "png", "webp"],
+    format: "webp",
     transformation: [{ width: 800, crop: "limit" }],
-  },
+  }),
 });
 
 const upload = multer({ storage });
-
 export default upload;
