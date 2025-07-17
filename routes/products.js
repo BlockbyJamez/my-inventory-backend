@@ -1,9 +1,9 @@
 // routes/products.js
 import express from "express";
-import { pool } from "../db.js";
+import { pool } from "./db.js";
 import { checkAdmin } from "../middleware/checkauth.js";
 import upload from "./upload.js";
-import { logAction } from "../log.js";
+import { logAction } from "./log.js";
 
 const router = express.Router();
 
