@@ -1,8 +1,8 @@
 // routes/users.js
 import express from "express";
 import { pool } from "../db.js";
-import { checkAdmin } from "../middleware/auth.js";
-import { logAction } from "../utils/log.js";
+import { checkAdmin } from "../middleware/checkauth.js";
+import { logAction } from "../log.js";
 
 const router = express.Router();
 

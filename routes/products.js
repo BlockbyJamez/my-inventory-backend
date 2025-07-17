@@ -1,9 +1,9 @@
 // routes/products.js
 import express from "express";
-import { pool } from "../db.js"; // 你的 PostgreSQL 連線池
-import { checkAdmin } from "../middleware/auth.js"; // 假設你已拆出 auth middleware
-import upload from "./upload.js"; // multer + cloudinary 上傳模組
-import { logAction } from "../utils/log.js"; // action log 工具
+import { pool } from "../db.js";
+import { checkAdmin } from "../middleware/checkauth.js";
+import upload from "./upload.js";
+import { logAction } from "../log.js";
 
 const router = express.Router();
 

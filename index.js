@@ -4,7 +4,7 @@ import cors from "cors";
 import timeout from "connect-timeout";
 import dotenv from "dotenv";
 import pool from "./db.js";
-import upload from "./routes/upload.js";
+import upload from "../routes/upload.js";
 import { logAction } from "./log.js";
 import { checkAdmin } from "./middleware/checkauth.js";
 import productRoutes from "./routes/products.js";
@@ -55,7 +55,7 @@ app.use("/products", productRoutes);
 app.use("/api", authRoutes);
 app.use("/transactions", transactionRoutes);
 app.use("/users", userRoutes);
-app.use("/dashboard", dashboardRoutes); // 預留
+// app.use("/dashboard", dashboardRoutes);
 
 app.use((err, req, res, next) => {
   console.error("🔥 全域錯誤攔截器：", err);
