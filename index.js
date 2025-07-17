@@ -6,7 +6,7 @@ import dotenv from "dotenv";
 import pool from "./db.js";
 import upload from "./routes/upload.js";
 import { logAction } from "./log.js";
-import { checkAdmin } from "./middleware/auth.js";
+import { checkAdmin } from "./middleware/checkauth.js";
 import productRoutes from "./routes/products.js";
 import authRoutes from "./routes/auth.js";
 import transactionRoutes from "./routes/transactions.js";
