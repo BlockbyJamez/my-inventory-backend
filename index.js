@@ -11,7 +11,7 @@ import productRoutes from "./routes/products.js";
 import authRoutes from "./routes/auth.js";
 import transactionRoutes from "./routes/transactions.js";
 import userRoutes from "./routes/users.js";
-import dashboardRoutes from "./routes/dashboard.js"; // ✅ 預留 dashboard
+// import dashboardRoutes from "./routes/dashboard.js";
 import "./init_db.js";
 
 dotenv.config();
