@@ -2,7 +2,7 @@
 import express from "express";
 import bcrypt from "bcrypt";
 import nodemailer from "nodemailer";
-import { pool } from "../db.js";
+import pool from "../db.js";
 import { logAction } from "../log.js";
 
 const router = express.Router();
