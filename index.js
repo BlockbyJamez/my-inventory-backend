@@ -4,7 +4,7 @@ import cors from "cors";
 import timeout from "connect-timeout";
 import dotenv from "dotenv";
 import pool from "./db.js";
-import upload from "./upload.js";
+import upload from "../upload.js";
 import { logAction } from "./log.js";
 import { checkAdmin } from "./middleware/checkauth.js";
 import productRoutes from "./routes/products.js";
