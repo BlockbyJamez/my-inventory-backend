@@ -33,4 +33,24 @@ router.get("/summary", async (req, res) => {
   }
 });
 
+router.get("/weekly-summary", async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT
+        TO_CHAR(DATE_TRUNC('day', timestamp), 'MM-DD') AS date,
+        SUM(CASE WHEN type = 'in' THEN quantity ELSE 0 END) AS stockin,
+        SUM(CASE WHEN type = 'out' THEN quantity ELSE 0 END) AS stockout
+      FROM transactions
+      WHERE timestamp >= CURRENT_DATE - INTERVAL '6 days'
+      GROUP BY DATE_TRUNC('day', timestamp)
+      ORDER BY DATE_TRUNC('day', timestamp)
+    `);
+
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Weekly summary 錯誤：", err);
+    res.status(500).json({ error: "近 7 日統計查詢失敗" });
+  }
+});
+
 export default router;
