@@ -11,7 +11,7 @@ import productRoutes from "./routes/products.js";
 import authRoutes from "./routes/auth.js";
 import transactionRoutes from "./routes/transactions.js";
 import userRoutes from "./routes/users.js";
-// import dashboardRoutes from "./routes/dashboard.js";
+import dashboardRoutes from "./routes/dashboard.js";
 import "./init_db.js";
 
 dotenv.config();
@@ -72,7 +72,7 @@ app.use("/products", productRoutes);
 app.use("/api", authRoutes);
 app.use("/transactions", transactionRoutes);
 app.use("/users", userRoutes);
-// app.use("/dashboard", dashboardRoutes);
+app.use("/dashboard", dashboardRoutes);
 
 app.use((err, req, res, next) => {
   console.error("🔥 全域錯誤攔截器：", err);
