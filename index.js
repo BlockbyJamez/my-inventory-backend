@@ -9,6 +9,7 @@ import { logAction } from "./log.js";
 import { checkAdmin } from "./middleware/checkauth.js";
 import productRoutes from "./routes/products.js";
 import authRoutes from "./routes/auth.js";
+import profileRoutes from "./routes/profile.js";
 import transactionRoutes from "./routes/transactions.js";
 import userRoutes from "./routes/users.js";
 import dashboardRoutes from "./routes/dashboard.js";
@@ -72,6 +73,7 @@ app.use("/products", productRoutes);
 app.use("/api", authRoutes);
 app.use("/transactions", transactionRoutes);
 app.use("/users", userRoutes);
+app.use("/profile", profileRoutes);
 app.use("/dashboard", dashboardRoutes);
 
 app.use((err, req, res, next) => {
