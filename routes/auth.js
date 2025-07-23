@@ -44,7 +44,7 @@ router.post("/send-code", async (req, res) => {
       service: "gmail",
       auth: {
         user: "danny90628@gmail.com",
-        pass: "dnndvufcudqjdckn", // ❗記得上線時抽成 .env
+        pass: "dnndvufcudqjdckn",
       },
     });
 

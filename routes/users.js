@@ -6,7 +6,6 @@ import { logAction } from "../log.js";
 
 const router = express.Router();
 
-// 📋 取得所有使用者
 router.get("/", checkAdmin, async (req, res) => {
   try {
     const result = await pool.query(
@@ -18,7 +17,6 @@ router.get("/", checkAdmin, async (req, res) => {
   }
 });
 
-// 🔧 修改使用者角色（限 admin）
 router.put("/:id/role", checkAdmin, async (req, res) => {
   const { role } = req.body;
   const validRoles = ["admin", "viewer"];
