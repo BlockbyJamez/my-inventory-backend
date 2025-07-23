@@ -22,7 +22,7 @@ router.post("/login", async (req, res) => {
     if (!isMatch) return res.status(401).json({ error: "帳號或密碼錯誤" });
 
     await logAction(username, "login_success", { username });
-    res.json({ success: true, username: user.username, role: user.role });
+    res.json({ success: true, username: user.username, role: user.role,  email: user.email });
   } catch (err) {
     res.status(500).json({ error: "伺服器錯誤" });
   }
